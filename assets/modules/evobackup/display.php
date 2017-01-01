@@ -1,22 +1,29 @@
 <?php
     global $_lang, $manager_language, $manager_theme,$theme_refresher,$modx_manager_charset, $syncid, $syncsite,$messagesallowed;
-
-$o = <<<EOD
+$help = $_lang['help'];
+$Config = $_lang["settings_module"];
+$o = '
 <html>
 <head>
 	<title>MODx Backup Utility</title>
-	<meta http-equiv="Content-Type" content="text/html; charset=$modx_manager_charset" />
-	<link rel="stylesheet" type="text/css" href="media/style/$manager_theme/style.css" />
+	<meta http-equiv="Content-Type" content="text/html; charset='.$modx_manager_charset.'" />
+	<link rel="stylesheet" type="text/css" href="media/style/'.$manager_theme.'/style.css" />
     <link rel="stylesheet" href="media/style/common/font-awesome/css/font-awesome.min.css" />
 <script src="media/script/jquery/jquery.min.js"></script>
 </head>
 <script>
 jQuery( document ).ready(function( $ ) {
-$('#checkAllAssets').click(function () {    
-    $(':checkbox.checkAssets').prop('checked', this.checked);    
+$(\'#checkAllAssets\').click(function () {    
+    $(\':checkbox.checkAssets\').prop(\'checked\', this.checked);    
  });
-$('#checkAllBackup').click(function () {    
-    $(':checkbox.checkAll').prop('checked', this.checked);    
+$(\'#checkAllBackup\').click(function () {    
+    $(\':checkbox.checkAll\').prop(\'checked\', this.checked);    
+ });
+$(\'#checkReqBackup\').click(function () {    
+    $(\':checkbox.checkReq\').prop(\'checked\', this.checked);    
+ });
+$(\'#checkMinBackup\').click(function () {    
+    $(\':checkbox.checkMin\').prop(\'checked\', this.checked);    
  });
  });
  </script>
@@ -33,26 +40,49 @@ table.evobackup .btn {
   width: 15px;
 }
 .info {color: #777;}
-.alert {padding: 20px;background-color: #f44336; /* Red */color: white;margin-bottom: 5px;}
+.info b{color: #3697CD;}
+.alert {padding: 20px;background-color: #f44336; color: white;margin-bottom: 5px;}
+.closebtn {
+    margin-left: 15px;
+    color: white;
+    font-weight: bold;
+    float: right;
+    font-size: 22px;
+    line-height: 20px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.closebtn:hover {
+    color: black;
+}
 .success {color: #07b922;}
 .yellow {font-size:14px; color:#444; background-color: yellow; border-radius:50%; border: 1px solid #f7bf04; padding:5px 7px; margin-right:5px;}
 .left {float: left; padding:10px; margin-right:20px;}
 .border-right {border-right: 1px dotted #dedede;}
 .border-top {padding-top: 10px; border-top: 1px dotted #dedede;}
+.capitalize {text-transform: capitalize;}
+.element-edit-message {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ededed;
+  margin-bottom: 15px;
+  color: #777;
+}
+
 </style>
 <h1 class="pagetitle">
   <span class="pagetitle-icon">
     <i class="fa fa-download"></i>
   </span>
   <span class="pagetitle-text">
-    EvoBackup v$module_version
+    '.$_lang['modulename'].' v'.$module_version.'
   </span>
 </h1>
 <div id="actions">
     <ul class="actionButtons">
     <!--@IF:[[#hasPermission?key=new_module]] OR [[#hasPermission?key=edit_module]]-->
-    <li id="Button6"><a href="index.php?a=108&id=$module_id"><i class='fa fa-cog'></i></a> </li>
+    <li id="Button6"><a href="index.php?a=108&id='.$module_id.'"><i class="fa fa-cog"></i> '.$Config.'</a> </li>
     <!--@ENDIF-->
+     <li id="Button9"><a href="#" class="evobackup-help"><i class="fa fa-question-circle"></i> '.$help.'</a></li>
         <li id="Button5"><a href="index.php?a=2">
             Close
         </a></li>
@@ -60,11 +90,12 @@ table.evobackup .btn {
 </div>
 <div class="sectionBody">
 <div class="dynamic-tab-pane-control tab-pane" id="evobackupPanes">
-<div class='tab-row'>
+<div class="tab-row">
         
         </div>
         <div class="tab-page panel-container">
-EOD;
+        
+';
 
 $out = $o.$out.'</div></div></div>';
 return $out;
