@@ -5,6 +5,7 @@
 if(IN_MANAGER_MODE!="true") die("<b>INCLUDE_ORDERING_ERROR</b><br /><br />Please use the MODx Content Manager instead of accessing this file directly.");
 global $modx, $_lang;
 
+$base_path = $modx->config['base_path'];
 $MGR_DIR = MGR_DIR;
 if(!$modx->hasPermission('bk_manager')) {	
 	$e->setError(3);
@@ -14,7 +15,7 @@ if(!$modx->hasPermission('bk_manager')) {
 $modx_backup_dir = $_SERVER['DOCUMENT_ROOT'].$backup_dir;
 $modx_db_backup_dir = $modx->config['base_path'] . 'assets/backup/';
 // module info
-$module_version = '1.2 (RC2)';
+$module_version = '1.2 (RC3)';
 $module_id = (!empty($_REQUEST["id"])) ? (int)$_REQUEST["id"] : $yourModuleId;
 
 //lang
@@ -23,6 +24,7 @@ include($mods_path.'evobackup/lang/english.php');
 if (file_exists($mods_path.'evobackup/lang/' . $modx->config['manager_language'] . '.php')) {
     include($mods_path.'evobackup/lang/' . $modx->config['manager_language'] . '.php');
 }
+
 $out ='';
 // onManagerMainFrameHeaderHTMLBlock
 $evtOut = $modx->invokeEvent('OnManagerMainFrameHeaderHTMLBlock');
@@ -32,10 +34,10 @@ $out .= $onManagerMainFrameHeaderHTMLBlock;
 // check if backup exists and is writable
 if (!file_exists($modx_backup_dir))
 {
-    $BACKUPERROR = "<i class=\"fa fa-exclamation-triangle\" aria-hidden=\"true\"></i> ".$_lang['backup_directory']." <strong>$modx_backup_dir</strong> ".$_lang['does_not_exist']."";
+    $BACKUPERROR = "<div class=\"alert\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><i class=\"fa fa-exclamation-triangle\" aria-hidden=\"true\"></i> ".$_lang['backup_directory']." <strong>$modx_backup_dir</strong> ".$_lang['does_not_exist']."</div>";
 } elseif(!is_writable($modx_backup_dir))
     {
-        $BACKUPERROR = "<i class=\"fa fa-exclamation-triangle\" aria-hidden=\"true\"></i> ".$_lang['backup_directory']." <strong>$modx_backup_dir</strong> ".$_lang['is_not_writable']."";
+        $BACKUPERROR = "<div class=\"alert\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><i class=\"fa fa-exclamation-triangle\" aria-hidden=\"true\"></i> ".$_lang['backup_directory']." <strong>$modx_backup_dir</strong> ".$_lang['is_not_writable']."</div>";
     }
 
 if (isset($BACKUPERROR) && $BACKUPERROR!='') {
@@ -283,7 +285,6 @@ $droptables = isset($_POST['droptables']) ? $_POST['droptables']:'';
 $filename   = isset($_REQUEST['filename']) ? $_REQUEST['filename']:'';
 $deletebackupsql  = isset($_POST['deletebackupsql']) ? $_POST['deletebackupsql']:'';
 
-
 $out .= <<<EOD
 <script language="JavaScript" type="text/javascript">
 function postForm(opcode,filename){
@@ -299,11 +300,11 @@ EOD;
 
 switch($opcode)
 {
-    case 'delete': // delete file
+    case 'deletezip': // delete file
         $deletefile = $modx_backup_dir.$filename;
         if (!file_exists($deletefile))
         {
-            $out .= "<p class=\"alert\"><i class=\"fa fa-exclamation-triangle\" aria-hidden=\"true\"></i> ".$_lang['file']." $filename ".$_lang['does_not_exist']."<br /></p>";
+            $out .= "<div class=\"alert\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><i class=\"fa fa-exclamation-triangle\" aria-hidden=\"true\"></i> ".$_lang['file']." $filename ".$_lang['does_not_exist']."<br /></div>";
         } else
             {
                 unlink($deletefile);
@@ -325,8 +326,8 @@ switch($opcode)
                 <span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span>
                 <i class=\"fa fa-info-circle\" aria-hidden=\"true\"></i> $filename ".$_lang['deleted']."<br /></div>";
             }
-    break;    
-    case 'generate': // generate backup
+    break; 
+       case 'generate': // generate backup
         /**
         * Zip directories into archive
         */
@@ -353,6 +354,42 @@ switch($opcode)
         }
         
     break;
+        case 'onlydbase': // add mysql database dump to archive
+        // dump sql data to temp file
+        include_once($mods_path.'evobackup/dumpsql.php');
+        
+        /*
+         * Code taken from Ralph A. Dahlgren MySQLdumper Snippet - Etomite 0.6 - 2004-09-27
+         * Modified by Raymond 3-Jan-2005
+         * Perform MySQLdumper data dump
+         */
+        @set_time_limit($db_time_limit); // set timeout limit to 2 minutes
+        global $dbase,$database_user,$database_password,$dbname,$database_server;
+        $dbname = str_replace("`","",$dbase);
+        $dumper = new Mysqldumper($database_server, $database_user, $database_password, $dbname); # Variables have replaced original hard-coded values
+        
+		$dumper->setTablePrefix($table_prefix);
+        $dumper->setDroptables(true);
+        $dumpfinished = $dumper->createDump($dump_log_tables);
+        $fh = fopen($modx_db_backup_dir.$database_filename,'w');
+        
+        if($dumpfinished) 
+        {
+            fwrite($fh,$dumpfinished);               
+            fclose($fh);
+          $out .= "<div class=\"success\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><h2><i class=\"fa fa-info-circle\" aria-hidden=\"true\"></i> ".$_lang['backupdb_successful']."</h2><strong><a class=\"textlink\" href=\"".$modx->config['site_url']."assets/modules/evobackup/downloadsql.php?filename=".basename($database_filename)."\">".$modx_db_backup_dir.$database_filename."</a></strong><br /><br />
+    <span class=\"actionButtons evobkpbuttons\">
+             <a href=\"".$modx->config['site_url']."assets/modules/evobackup/downloadsql.php?filename=".basename($database_filename)."\"><i class=\"fa fa-download\" aria-hidden=\"true\"></i>  ".$_lang['download_backup']."</a>
+        </span>
+    </div>";
+         }       
+        else {
+	        $e->setError(1,"".$_lang['unable_to_backup_db']."");
+	        $e->dumpError();
+        }
+  
+    break;
+        
     case 'dumpdbase': // add mysql database dump to archive
         // dump sql data to temp file
         include_once($mods_path.'evobackup/dumpsql.php');
@@ -408,14 +445,38 @@ switch($opcode)
           //          if ($deletebackupsql!='') {
       unlink($modx_db_backup_dir.$database_filename);
     //}
-    $out .= "<div class=\"success\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><h2><i class=\"fa fa-info-circle\" aria-hidden=\"true\"></i> ".$_lang['backup_successful']." </h2><strong><a class=\"textlink\" href=\"".$modx->config['site_url']."assets/modules/evobackup/download.php?filename=".basename($fname."_db.".$ext)."\">".$modx_backup_dir.$fname."_db.".$ext."</a></strong><br /><br />
+    $out .= "<div class=\"success\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><h2><i class=\"fa fa-info-circle\" aria-hidden=\"true\"></i> ".$_lang['backupzip_successful']." </h2><strong><a class=\"textlink\" href=\"".$modx->config['site_url']."assets/modules/evobackup/download.php?filename=".basename($fname."_db.".$ext)."\">".$modx_backup_dir.$fname."_db.".$ext."</a></strong><br /><br />
     <span class=\"actionButtons evobkpbuttons\">
              <a href=\"".$modx->config['site_url']."assets/modules/evobackup/download.php?filename=".basename($fname."_db.".$ext)."\"><i class=\"fa fa-download\" aria-hidden=\"true\"></i>  ".$_lang['download_backup']."</a>
         </span>
     </div>";    
  break;
+//extract a ZipArchive 
+case 'extractzip': 
+$ext = '.zip';
+$zipname = $modx_backup_dir.$filename;
+$zip = new ZipArchive;
+//open the archive
+if ($zip->open($modx_backup_dir.$filename) === TRUE) {
+    //extract contents to /data/ folder
+    $zip->extractTo($modx_extract_dir);
+    //close the archive
+    $zip->close();
+     $out .= "<div class=\"success\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><h2><i class=\"fa fa-info-circle\" aria-hidden=\"true\"></i> ".$_lang['archive_extracted']."! </h2><p>from <b>$filename</b> <br/>to <b>$modx_extract_dir</b></p></div>";   
+} else {
+    $out .= '<div class=\"alert\">'.$_lang['error_open_archive'].'!</div>';
 }
-    
+break;
+case 'restoresql':
+global $dbase,$database_user,$database_password,$dbname,$database_server;
+$dbname = str_replace("`","",$dbase);        
+$sql = mysqli_connect($database_server, $database_user, $database_password, $dbname);
+$sqlSource = file_get_contents($modx_db_backup_dir.$filename);
+mysqli_multi_query($sql,$sqlSource);
+$out .= "<div class=\"success\"><span class=\"closebtn\" onclick=\"this.parentElement.style.display='none';\">&times;</span><h2><i class=\"fa fa-info-circle\" aria-hidden=\"true\"></i> ".$_lang['db_extracted']."! </h2></div>";
+break;
+}
+
 
 /** tabs**/
 $out .= "<div class=\"tab-pane\" id=\"evobackupPanes\">
@@ -444,8 +505,14 @@ $(document).ready(function(){
     $(".sqlbackup-help").click(function(){
         $("#sqlbackup-info").toggle(800);
     });
+    $(".all-help").click(function(){
+        $("#sqlbackup-info").toggle(800);
+        $("#evobackup-info").toggle(800);
+        $("#archivebackup-info").toggle(800);
+    });
 });
 </script>
+
 <h2>'.$_lang['generate_backup'].'</h2>
 <div id="evobackup-info" style="display:none">
             <div class="element-edit-message">
@@ -455,18 +522,20 @@ $(document).ready(function(){
              '.$_lang['help_medium_backup'].'
             <h3>'.$_lang['full_backup'].'</h3>
              '.$_lang['help_full_backup'].'
+            <h3>'.$_lang['backup_folder'].':</h3>
+            <b>'.$modx_backup_dir.'</b>
              </div>
         </div>
 <p><span class="info"><b><a href="#" title="'.$_lang['help'].'" class="evobackup-help"><i class="fa fa-question-circle fa-lg " aria-hidden="true"></i></a></b></span> '.$_lang['choose_backup'].' <span class="info">
-<input type="checkbox" id="checkMinBackup"><b>'.$_lang['light_backup'].'</b> 
-<input type="checkbox" id="checkReqBackup" checked="checked"><b>'.$_lang['medium_backup'].'</b>  <input type="checkbox" id="checkAllBackup" ><b>'.$_lang['full_backup'].'</b></span></p>
+<input type="checkbox" class="UncheckReq UncheckFull" id="checkMinBackup" checked="checked"><b>'.$_lang['light_backup'].'</b> 
+<input type="checkbox" class="UncheckMin UncheckFull" id="checkReqBackup"><b>'.$_lang['medium_backup'].'</b>  <input type="checkbox" class="UncheckReq UncheckMin" id="checkAllBackup" ><b>'.$_lang['full_backup'].'</b></span></p>
 
 <div class="border-top" style="clear:both"></div>
 <div id="more-options">
 <div class="left border-right">
 <h3><i class="fa fa-folder-open-o" aria-hidden="true"></i> '.$_lang['assets_backup'].'</h3>
-<p class="info"><input type="checkbox" id="checkAllAssets" > '.$_lang['check_all'].' 
- <label><input type="checkbox" name="dumpassets" class="checkAll"/>  <b>/assets</b> ('.$_lang['whole_assets'].')</label></p>
+<p class="info"><input type="checkbox" class="UncheckReq UncheckMin" id="checkAllAssets" > '.$_lang['check_all'].' 
+ <label><input type="checkbox" name="dumpassets" class="UncheckReq UncheckMin checkAll"/>  <b>/assets</b> ('.$_lang['whole_assets'].')</label></p>
 
 <div class="left border-right">
 <h4>'.$_lang['assets_user_folders'].'</h4>
@@ -479,23 +548,23 @@ $(document).ready(function(){
 
 <div class="left border-right">
 <h4>'.$_lang['assets_elements_folders'].'</h4>
-<label><input type="checkbox" name="dumpmodules" class="checkAssets checkReq" checked="checked"/>  /modules</label><br />
-<label><input type="checkbox" name="dumpplugins" class="checkAssets checkReq" checked="checked"/>  /plugins</label><br />
-<label><input type="checkbox" name="dumpsnippets" class="checkAssets checkReq" checked="checked"/>  /snippets</label><br />
-<label><input type="checkbox" name="dumptvs" class="checkAssets checkReq" checked="checked"/>  /tvs</label><br />
-<label><input type="checkbox" name="dumplib" class="checkAssets checkReq" checked="checked"/>  /lib </label><br />
-<label><input type="checkbox" name="dumpjs" class="checkAssets checkReq" checked="checked"/>  /js </label><br />
+<label><input type="checkbox" name="dumpmodules" class="checkAssets UncheckMin checkReq"/>  /modules</label><br />
+<label><input type="checkbox" name="dumpplugins" class="checkAssets UncheckMin checkReq"/>  /plugins</label><br />
+<label><input type="checkbox" name="dumpsnippets" class="checkAssets UncheckMin checkReq"/>  /snippets</label><br />
+<label><input type="checkbox" name="dumptvs" class="checkAssets UncheckMin checkReq"/>  /tvs</label><br />
+<label><input type="checkbox" name="dumplib" class="checkAssets UncheckMin checkReq"/>  /lib </label><br />
+<label><input type="checkbox" name="dumpjs" class="checkAssets UncheckMin checkReq"/>  /js </label><br />
 </div>
 
 <div class="left">
 <h4>'.$_lang['assets_system_folders'].'</h4>
-<label><input type="checkbox" class="checkAssets" name="dumpthumbs" /> /.thumbs </label><br />
-<label><input type="checkbox" class="checkAssets" name="dumpbackup"/> /backup </label><br />
-<label><input type="checkbox" class="checkAssets" name="dumpcache" /> /cache </label><br />
-<label><input type="checkbox" class="checkAssets" name="dumpdocs" />  /docs </label><br />
-<label><input type="checkbox" class="checkAssets" name="dumpexport" />  /export </label><br />
-<label><input type="checkbox" class="checkAssets" name="dumpimport" />  /import </label><br />
-<label><input type="checkbox" class="checkAssets" name="dumpsite" />  /site</label><br />
+<label><input type="checkbox" class="checkAssets UncheckMin UncheckReq" name="dumpthumbs" /> /.thumbs </label><br />
+<label><input type="checkbox" class="checkAssets UncheckMin UncheckReq" name="dumpbackup"/> /backup </label><br />
+<label><input type="checkbox" class="checkAssets UncheckMin UncheckReq" name="dumpcache" /> /cache </label><br />
+<label><input type="checkbox" class="checkAssets UncheckMin UncheckReq" name="dumpdocs" />  /docs </label><br />
+<label><input type="checkbox" class="checkAssets UncheckMin UncheckReq" name="dumpexport" />  /export </label><br />
+<label><input type="checkbox" class="checkAssets UncheckMin UncheckReq" name="dumpimport" />  /import </label><br />
+<label><input type="checkbox" class="checkAssets UncheckMin UncheckReq" name="dumpsite" />  /site</label><br />
 </div>
 
 
@@ -503,16 +572,16 @@ $(document).ready(function(){
 
 <div class="left" style="padding-right: 25px;">
 <h3><i class="fa fa-folder-open-o" aria-hidden="true"></i> '.$_lang['manager_backup'].'</h3>
-<p class="info"><label><input type="checkbox" class="checkAll" name="dumpmanager" /> <b>/'.$MGR_DIR.'</b>  ('.$_lang['whole_manager'].')</label></p>
+<p class="info"><label><input type="checkbox" class="UncheckReq UncheckMin checkAll" name="dumpmanager" /> <b>/'.$MGR_DIR.'</b>  ('.$_lang['whole_manager'].')</label></p>
 <div class="left">
 <h4>'.$_lang['only_those_manager_files'].'</h4>
-<label><input type="checkbox" name="dumpconfig" class="checkReq checkMin" checked="checked"/> /includes/config.inc.php </label><span class="info">('.$_lang['manager_config_file'].')</span><br />
-<label><input type="checkbox" name="dumpmanhtaccess" /> /.htaccess </label><br />
-<label><input type="checkbox" name="dumpthemes" /> /media/styles </label><span class="info">('.$_lang['manager_themes'].')</span><br />
-<label><input type="checkbox" name="dumpmframes" /> /frames </label><br />
-<label><input type="checkbox" name="dumpmincludes" /> /includes </label><br />
-<label><input type="checkbox" name="dumpmmedia" /> /media </label><br />
-<label><input type="checkbox" name="dumpmprocessors" /> /processors </label><br />
+<label><input type="checkbox" name="dumpconfig" class="checkReq UncheckFull UncheckMin"/> /includes/config.inc.php </label><span class="info">('.$_lang['manager_config_file'].')</span><br />
+<label><input type="checkbox" name="dumpmanhtaccess" class="UncheckReq UncheckMin UncheckFull"/> /.htaccess </label><br />
+<label><input type="checkbox" name="dumpthemes" class="UncheckReq UncheckMin UncheckFull"/> /media/styles </label><span class="info">('.$_lang['manager_themes'].')</span><br />
+<label><input type="checkbox" name="dumpmframes" class="UncheckReq UncheckMin UncheckFull"/> /frames </label><br />
+<label><input type="checkbox" name="dumpmincludes" class="UncheckReq UncheckMin UncheckFull"/> /includes </label><br />
+<label><input type="checkbox" name="dumpmmedia" class="UncheckReq UncheckMin UncheckFull"/> /media </label><br />
+<label><input type="checkbox" name="dumpmprocessors" class="UncheckReq UncheckMin UncheckFull"/> /processors </label><br />
 </div>
 </div>
 <div class="border-top" style="clear:both"></div>
@@ -520,10 +589,10 @@ $(document).ready(function(){
 <div class="left border-right" style="padding-right: 25px;">
 <h3><i class="fa fa-folder-open-o" aria-hidden="true"></i> '.$_lang['root_backup'].'</h3>
 <p>'.$_lang['root_backup_descr'].'</p>
-<label><input type="checkbox" class="checkAll" name="dumphtaccess" /> .htaccess </label><br />
-<label><input type="checkbox" class="checkAll checkReq" name="dumprobots" checked="checked"/> robots.txt </label><br />
-<label><input type="checkbox" class="checkAll" name="dumpindex" />  index.php </label><br />
-<label><input type="checkbox" class="checkAll" name="dumpindexajax" />  index-ajax.php </label><br /><br />
+<label><input type="checkbox" class="UncheckReq UncheckMin checkAll" name="dumphtaccess" /> .htaccess </label><br />
+<label><input type="checkbox" class="UncheckMin checkAll checkReq" name="dumprobots"/> robots.txt </label><br />
+<label><input type="checkbox" class="UncheckReq UncheckMin checkAll" name="dumpindex" />  index.php </label><br />
+<label><input type="checkbox" class="UncheckReq UncheckMin checkAll" name="dumpindexajax" />  index-ajax.php </label><br /><br />
 </div>
 
 <div class="left border-right">
@@ -537,23 +606,23 @@ $(document).ready(function(){
 if ($customfold1!=''){
 $out .= '
 <h3><i class="fa fa-folder-open" aria-hidden="true"></i> '.$_lang['custom_files_backup'].'</h3>
-<label><input type="checkbox" name="dumpcustomfold1" class="checkAll"/>  '.$customfold1.' </label><br />';
+<label><input class="UncheckReq UncheckMin checkAll" type="checkbox" name="dumpcustomfold1" class="checkAll"/>  '.$customfold1.' </label><br />';
 }
 if ($customfold2!=''){
 $out .=  '
-<label><input type="checkbox" name="dumpcustomfold2" class="checkAll"/>  '.$customfold2.' </label><br />';
+<label><input class="UncheckReq UncheckMin checkAll" type="checkbox" name="dumpcustomfold2" class="checkAll"/>  '.$customfold2.' </label><br />';
 }
 if ($customfold3!=''){
 $out .= '
-<label><input type="checkbox" name="dumpcustomfold3" class="checkAll"/>  '.$customfold3.' </label><br />';
+<label><input class="UncheckReq UncheckMin checkAll" type="checkbox" name="dumpcustomfold3" class="checkAll"/>  '.$customfold3.' </label><br />';
 }
 if ($customfold4!=''){
 $out .= '
-<label><input type="checkbox" name="dumpcustomfold4" class="checkAll"/>  '.$customfold4.' </label><br />';
+<label><input class="UncheckReq UncheckMin checkAll" type="checkbox" name="dumpcustomfold4" class="checkAll"/>  '.$customfold4.' </label><br />';
 }
 if ($customfold5!=''){
 $out .= '
-<label><input type="checkbox" name="dumpcustomfold5" class="checkAll"/>  '.$customfold5.' </label><br />';
+<label><input class="UncheckReq UncheckMin checkAll" type="checkbox" name="dumpcustomfold5" class="checkAll"/>  '.$customfold5.' </label><br />';
 }
 
 $out .=  '
@@ -562,7 +631,8 @@ $out .=  '
 <div class="border-top" style="clear:both"></div>
 </div>
 <span class="actionButtons evobkpbuttons">
-             <a class="primary" href="#" onclick="postForm(\'generate\')" value="Backup Now!">'.$_lang['backup_button_text'].'</a>
+             <a class="primary" href="#" onclick="postForm(\'generate\')" value="Backup Now!">'.$_lang['backup_button_text'].'</a>  
+             <a class="primary" href="#" onclick="postForm(\'onlydbase\')" value="Backup db">'.$_lang['backupdbonly_button_text'].'</a> 
         </span>
 
 
@@ -582,6 +652,12 @@ $out .= "<div class=\"tab-page\" id=\"tabpanel-evofullbkp\">
             <div class=\"element-edit-message\">
              <h3>".$_lang['archive_backup_help_title']."</h3>
              ".$_lang['archive_backup_help']."
+             <h3>".$_lang['extract_zip_backup']."</h3>
+             <p>".$_lang['extract_zip_info']."</p>
+            <h3>".$_lang['extract_folder'].":</h3>
+             <p><b>".$modx_extract_dir."</b><br/> </p>
+             <h3>".$_lang['delete_backup']."</h3>
+             <p>".$_lang['delete_confirm_info']."</p>
              </div>
         </div>
     <p><span class=\"info\"><b><a href=\"#\" title=\"".$_lang['help']."\" class=\"archivebackup-help\"><i class=\"fa fa-question-circle fa-lg \" aria-hidden=\"true\"></i></a></b></span> ".$_lang['manage_backup_descr']."</p><table class=\"evobackup grid\" width=\"100%\"><thead><tr>
@@ -598,7 +674,14 @@ if ($handle = opendir($modx_backup_dir)) {
            $fs = filesize($modx_backup_dir.$file)/1024; 
            $out .= "<tr><td><i class=\"fa fa-file-archive-o yellow\" aria-hidden=\"true\"></i>  <b>$file</b></td><td> ".ceil($fs)." kb</td>"
                   ."<td style=\"text-align:right;\"><a title=\"".$_lang['download_backup']."\" class=\"btn btn-default btn-sm\" href=\"".$modx->config['site_url']."assets/modules/evobackup/download.php?filename=$file\"><i class=\"fa fa-download\"></i></a> 
-                   <a title=\"".$_lang['delete_backup']."\" class=\"btn btn-default btn-sm\" onclick=\"postForm('delete','$file')\"><i class=\"fa fa-trash\"></i></a></td></tr>";
+                  
+                  <a title=\"".$_lang['extract_zip_backup']."\" class=\"btn btn-default btn-sm\" onclick=\"javascript:if(confirm('".$_lang['extract_zip_confirm']." $file ".$_lang['extract_to']." $modx_extract_dir ? ".$_lang['extract_zip_info']."')){postForm('extractzip','$file'); return false;}\"><i class=\"fa fa-file-archive-o\"></i></a>
+                  
+          
+                  <a title=\"".$_lang['delete_backup']."\" class=\"btn btn-default btn-sm\" onclick=\"javascript:if(confirm('".$_lang['delete_confirm']." $file? ".$_lang['delete_confirm_info']."')){postForm('deletezip','$file'); return false;}\"><i class=\"fa fa-trash\"></i></a>
+           
+                   
+                   </td></tr>";
        }
    }
    closedir($handle);
@@ -616,6 +699,10 @@ $out .= "<div class=\"tab-page\" id=\"tabpanel-evosqlbkp\">
             <div class=\"element-edit-message\">
              <h3>".$_lang['sql_backup_help_title']."</h3>
              ".$_lang['sql_backup_help']."
+             <h3>".$_lang['restore_sql_backup']."</h3>
+             <p>".$_lang['restore_sql_info']."</p>
+             <h3>".$_lang['delete_backup']."</h3>
+             <p>".$_lang['delete_confirm_info']."</p>
              </div>
         </div>
 <p><span class=\"info\"><b><a href=\"#\" title=\"".$_lang['help']."\" class=\"sqlbackup-help\"><i class=\"fa fa-question-circle fa-lg \" aria-hidden=\"true\"></i></a></b></span>  ".$_lang['manage_backup_descr']."</p><table class=\"evobackup grid\" width=\"100%\"><thead><tr>
@@ -633,7 +720,12 @@ if ($handle = opendir($modx_db_backup_dir)) {
            $fs = filesize($modx_backup_default.$file)/1024; 
            $out .= "<tr><td><i class=\"fa fa-database yellow\" aria-hidden=\"true\"></i>  <b>$file</b></td><td> ".ceil($fs)." kb</td>"
                   ."<td style=\"text-align:right;\"><a title=\"".$_lang['download_backup']."\" class=\"btn btn-default btn-sm\" href=\"".$modx->config['site_url']."assets/modules/evobackup/downloadsql.php?filename=$file\"><i class=\"fa fa-download\"></i></a> 
-                   <a title=\"".$_lang['delete_backup']."\" class=\"btn btn-default btn-sm\" onclick=\"postForm('deletesql','$file')\"><i class=\"fa fa-trash\"></i></a></td></tr>";
+                  
+                  <a title=\"".$_lang['restore_sql_backup']."\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-repeat\" onclick=\"javascript:if(confirm('".$_lang['restore_sql_confirm']." $file? ".$_lang['restore_sql_info']."')){postForm('restoresql','$file'); return false;}\"></i></a>
+                  
+                  
+                   <a title=\"".$_lang['delete_backup']."\" class=\"btn btn-default btn-sm\" onclick=\"javascript:if(confirm('".$_lang['delete_confirm']." $file? ".$_lang['delete_confirm_info']."')){postForm('deletesql','$file'); return false;}\"><i class=\"fa fa-trash\"></i></a>
+                   </td></tr>";
        }
    }
    closedir($handle);
@@ -641,7 +733,10 @@ if ($handle = opendir($modx_db_backup_dir)) {
 
 global $lang;
 $out .= '</tbody></table><span class="actionButtons evobkpbuttons">
-             <a href="index.php?a=93" class="primary" style="display:inline-block;" onclick="document.snapshot.save.click();">'.$_lang['bk_manager'].'</a>
-        </span></div>';
+            <a class="primary" href="#" onclick="postForm(\'onlydbase\')" value="Backup db">'.$_lang['backupdb_button_text'].'</a>
+             <a href="index.php?a=93" class="" style="display:inline-block;">'.$_lang['bk_manager'].'</a>
+  
+        </span></div>
+';
 
 ?>

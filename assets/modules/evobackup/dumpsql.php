@@ -46,7 +46,7 @@ class Mysqldumper {
 	var $_dbtables;
 	var $_isDroptables;
 	
-	function Mysqldumper($host = "localhost", $dbuser = "", $dbpassword = "", $dbname = "") {
+	function __construct($host = "localhost", $dbuser = "", $dbpassword = "", $dbname = "") {
 		$this->setHost($host);
 		$this->setDBuser($dbuser);
 		$this->setDBpassword($dbpassword);
@@ -110,7 +110,7 @@ class Mysqldumper {
 	
 	function createDump($dumpLogs=false,$callBack=null) {
 		
-		global $site_name,$full_appname;
+		global $site_name,$version,$full_appname;
 		
 		// Set line feed
 		$lf = "\n";
@@ -145,14 +145,16 @@ class Mysqldumper {
 		// Set header
 		$output = "#". $lf;
 		$output .= "# ".addslashes($site_name)." Database Dump" . $lf;
-		$output .= "# ".$full_appname.$lf;
+		$output .= "# " . $full_appname . $lf;
 		$output .= "# ". $lf;
 		$output .= "# Host: " . $this->getHost() . $lf;
 		$output .= "# Generation Time: " . date("M j, Y at H:i") . $lf;
-		$output .= "# Server version: ". mysqli_get_server_info() . $lf;
+		$output .= "# Server version: ". mysqli_get_server_info($resource) . $lf;
 		$output .= "# PHP Version: " . phpversion() . $lf;
 		$output .= "# Database : `" . $this->getDBname() . "`" . $lf;
+        $output .= "# Description: EvoBackup {$lf}";
 		$output .= "#";
+
 
 		// Generate dumptext for the tables.
 		if (isset($this->_dbtables) && count($this->_dbtables)) {
